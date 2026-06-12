@@ -5,7 +5,7 @@
 
 HttpResponse serveFile(const std::string &path)
 {
-    std::string filePath = "public" + path;
+    std::string filePath = "../public" + path;
     std::ifstream file(filePath);
 
     if (!file.is_open())

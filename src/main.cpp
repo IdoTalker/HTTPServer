@@ -1,6 +1,6 @@
 #include "ClientHandler.h"
+#include "ThreadPool.h"
 #include <iostream>
-#include <thread>
 
 int main()
 {
@@ -16,7 +16,7 @@ int main()
     SocketGuard serverSocket(socket(AF_INET, SOCK_STREAM, 0));
 
     sockaddr_in addr;
-    addr.sin_family = AF_INET;
+    addr.sin_family = AF_INET; //means we are using IPV4
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(8080);
 
@@ -25,6 +25,8 @@ int main()
 
     std::cout << "listening..." << std::endl;
 
+    ThreadPool pool(4);
+
     while (true)
     {
         sockaddr_in clientAddr;
@@ -32,10 +34,8 @@ int main()
         SocketGuard clientSocket(accept(serverSocket.s, (sockaddr *)&clientAddr, &clientAddrLen));
 
         SOCKET raw = clientSocket.s;
+        pool.enqueue(raw);
         clientSocket.s = INVALID_SOCKET; // So SocketGuard wont close our socket when the loop closes
-
-        std::thread t(handleClient, raw);
-        t.detach(); // We don't care when the function finished so we use detach()
     }
 
     WSACleanup();
