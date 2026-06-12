@@ -3,6 +3,7 @@
 #include "HttpRequest.h"
 #include "HttpResponse.h"
 #include "FileServer.h"
+#include "Logger.h"
 #include <iostream>
 
 void handleClient(SOCKET clientSocket)
@@ -11,7 +12,6 @@ void handleClient(SOCKET clientSocket)
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
 
     HttpRequest req = parseRequest(std::string(buffer, bytesRead));
-    std::cout << req.method << " " << req.path << std::endl;
 
     if (req.path == "/")
         req.path = "/index.html";
@@ -19,6 +19,8 @@ void handleClient(SOCKET clientSocket)
     HttpResponse res = serveFile(req.path);
     std::string responseStr = buildResponse(res);
     
+    log(req.method, req.path, res.statusCode);
+
     send(clientSocket, responseStr.c_str(), responseStr.size(), 0);
 
     closesocket(clientSocket);
