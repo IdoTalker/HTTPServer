@@ -1,8 +1,6 @@
-#include "Socket.h"
-#include "HttpRequest.h"
-#include "HttpResponse.h"
-#include "FileServer.h"
+#include "ClientHandler.h"
 #include <iostream>
+#include <thread>
 
 int main()
 {
@@ -33,18 +31,11 @@ int main()
         int clientAddrLen = sizeof(clientAddr);
         SocketGuard clientSocket(accept(serverSocket.s, (sockaddr *)&clientAddr, &clientAddrLen));
 
-        char buffer[4096];
-        int bytesRead = recv(clientSocket.s, buffer, sizeof(buffer), 0);
+        SOCKET raw = clientSocket.s;
+        clientSocket.s = INVALID_SOCKET; // So SocketGuard wont close our socket when the loop closes
 
-        HttpRequest req = parseRequest(std::string(buffer, bytesRead));
-        std::cout << req.method << " " << req.path << std::endl;
-
-        if (req.path == "/")
-            req.path = "/index.html";
-
-        HttpResponse res = serveFile(req.path);
-        std::string responseStr = buildResponse(res);
-        send(clientSocket.s, responseStr.c_str(), responseStr.size(), 0);
+        std::thread t(handleClient, raw);
+        t.detach(); // We don't care when the function finished so we use detach()
     }
 
     WSACleanup();
