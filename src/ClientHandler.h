@@ -8,20 +8,28 @@
 
 void handleClient(SOCKET clientSocket)
 {
-    char buffer[4096];
-    int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+    while (true)
+    {
+        char buffer[4096];
+        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
 
-    HttpRequest req = parseRequest(std::string(buffer, bytesRead));
+        if(bytesRead <= 0) break;
 
-    if (req.path == "/")
-        req.path = "/index.html";
+        HttpRequest req = parseRequest(std::string(buffer, bytesRead));
 
-    HttpResponse res = serveFile(req.path);
-    std::string responseStr = buildResponse(res);
-    
-    log(req.method, req.path, res.statusCode);
+        if (req.path == "/")
+            req.path = "/index.html";
 
-    send(clientSocket, responseStr.c_str(), responseStr.size(), 0);
+        HttpResponse res = serveFile(req.path);
+        std::string responseStr = buildResponse(res);
+
+        log(req.method, req.path, res.statusCode);
+
+        send(clientSocket, responseStr.c_str(), responseStr.size(), 0);
+
+        std::string connection = req.headers.count("Connection") ? req.headers["Connection"] : "close";
+        if(connection == "close") break;
+    }
 
     closesocket(clientSocket);
 }
