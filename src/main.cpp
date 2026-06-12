@@ -14,14 +14,28 @@ int main()
     }
 
     SocketGuard serverSocket(socket(AF_INET, SOCK_STREAM, 0));
+    if (serverSocket.s == INVALID_SOCKET)
+    {
+        std::cerr << "socket failed: " << WSAGetLastError() << std::endl;
+        return 1;
+    }
 
     sockaddr_in addr;
-    addr.sin_family = AF_INET; //means we are using IPV4
+    addr.sin_family = AF_INET; // means we are using IPV4
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(8080);
 
-    bind(serverSocket.s, (sockaddr *)&addr, sizeof(addr));
-    listen(serverSocket.s, SOMAXCONN);
+    if (bind(serverSocket.s, (sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
+        std::cerr << "bind failed: " << WSAGetLastError() << std::endl;
+        return 1;
+    }
+
+    if (listen(serverSocket.s, SOMAXCONN) == SOCKET_ERROR)
+    {
+        std::cerr << "listen failed: " << WSAGetLastError() << std::endl;
+        return 1;
+    }
 
     std::cout << "listening..." << std::endl;
 
@@ -34,6 +48,12 @@ int main()
         SocketGuard clientSocket(accept(serverSocket.s, (sockaddr *)&clientAddr, &clientAddrLen));
 
         SOCKET raw = clientSocket.s;
+        if (raw == INVALID_SOCKET)
+        {
+            std::cerr << "accept failed: " << WSAGetLastError() << std::endl;
+            continue;
+        }
+
         pool.enqueue(raw);
         clientSocket.s = INVALID_SOCKET; // So SocketGuard wont close our socket when the loop closes
     }
