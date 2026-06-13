@@ -1,10 +1,11 @@
 #include "ClientHandler.h"
 #include "ThreadPool.h"
+#include "Router.h"
 #include <iostream>
 
 int main()
 {
-    WSADATA wsaData;
+    WSADATA wsaData; // DS that stores information about windows sockets
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
 
     if (result != 0)
@@ -40,6 +41,7 @@ int main()
     std::cout << "listening..." << std::endl;
 
     ThreadPool pool(4);
+    Router router;
 
     while (true)
     {
@@ -54,7 +56,8 @@ int main()
             continue;
         }
 
-        pool.enqueue(raw);
+        pool.enqueue([raw, &router]()
+                     { handleClient(raw, router); });
         clientSocket.s = INVALID_SOCKET; // So SocketGuard wont close our socket when the loop closes
     }
 

@@ -5,20 +5,18 @@
 #include <queue>
 #include <vector>
 #include <functional>
-#include <WinSock2.h>
-#include "ClientHandler.h"
 
 struct ThreadPool
 {
     std::vector<std::thread> workers;
-    std::queue<SOCKET> tasks;
+    std::queue<std::function<void()>> tasks;
     std::mutex mtx;
     std::condition_variable cv;
     bool stop = false;
 
     ThreadPool(int numThreads);
     ~ThreadPool();
-    void enqueue(SOCKET clientSocket);
+    void enqueue(std::function<void()> task);
 };
 
 ThreadPool::ThreadPool(int numThreads)
@@ -28,26 +26,26 @@ ThreadPool::ThreadPool(int numThreads)
         workers.emplace_back([this]()
                              {
             while(true){
-                SOCKET clientSocket;
+                std::function<void()> task;
                 {
                     std::unique_lock<std::mutex> lock(mtx);
                     cv.wait(lock, [this]() {
                         return !tasks.empty() || stop;
                     });
                     if(stop && tasks.empty()) return;
-                    clientSocket = tasks.front();
+                    task = tasks.front();
                     tasks.pop();
                 }
-                handleClient(clientSocket);
+                task();
             } });
     }
 }
 
-void ThreadPool::enqueue(SOCKET clientSocket)
+void ThreadPool::enqueue(std::function<void()> task)
 {
     {
         std::unique_lock<std::mutex> lock(mtx);
-        tasks.push(clientSocket);
+        tasks.push(task);
     }
     cv.notify_one();
 }
