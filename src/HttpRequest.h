@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <sstream>
+#include "UrlUtils.h"
 
 struct HttpRequest
 {
@@ -10,6 +11,8 @@ struct HttpRequest
     std::string version;
     std::map<std::string, std::string> headers;
     std::string body;
+    std::map<std::string, std::string> queryParams;
+    std::map<std::string, std::string> params;
 };
 
 HttpRequest parseRequest(const std::string &raw)
@@ -23,7 +26,18 @@ HttpRequest parseRequest(const std::string &raw)
     ss >> a >> b >> c;
 
     req.method = a;
-    req.path = b;
+
+    size_t splitIndex = b.find('?');
+    if (splitIndex != std::string::npos)
+    {
+        req.path = urlDecode(b.substr(0, splitIndex));
+        req.queryParams = parseQueryString(b.substr(splitIndex + 1));
+    }
+    else
+    {
+        req.path = urlDecode(b);
+    }
+
     req.version = c;
 
     size_t cursor = index + 2;

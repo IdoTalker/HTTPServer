@@ -4,7 +4,6 @@
 #include "HttpResponse.h"
 #include "Logger.h"
 #include "Router.h"
-#include "UrlUtils.h"
 #include <iostream>
 
 std::string readRequest(SOCKET clientSocket)
@@ -57,7 +56,6 @@ void handleClient(SOCKET clientSocket, Router& router)
         if (raw.empty())
             break;
         HttpRequest req = parseRequest(raw);
-        req.path = urlDecode(req.path);
 
         if (req.path == "/")
             req.path = "/index.html";

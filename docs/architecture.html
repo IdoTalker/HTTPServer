@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTTPServer — Architecture</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2029;
+    --panel2: #222b36;
+    --line: #2d3742;
+    --text: #e4e9f0;
+    --muted: #8a97a8;
+    --blue: #60a5fa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --purple: #a78bfa;
+    --red: #f87171;
+    --cyan: #22d3ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 20px; margin: 56px 0 18px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .sub { color: var(--muted); font-size: 15px; margin-bottom: 8px; }
+  code { font-family: "Cascadia Code", "Consolas", monospace; background: var(--panel2); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* flow */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .step { display: flex; gap: 16px; align-items: flex-start; }
+  .step .num {
+    flex: 0 0 34px; height: 34px; border-radius: 50%; background: var(--panel2);
+    border: 1px solid var(--line); color: var(--cyan); font-weight: 700;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; z-index: 1;
+  }
+  .step .body { padding-bottom: 22px; }
+  .step .body .t { font-weight: 600; }
+  .step .body .d { color: var(--muted); font-size: 14px; }
+  .rail { position: relative; }
+  .rail::before {
+    content: ""; position: absolute; left: 16px; top: 18px; bottom: 18px;
+    width: 2px; background: var(--line);
+  }
+
+  /* file cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; border-left: 3px solid var(--accent, var(--muted)); }
+  .card .fn { font-family: "Cascadia Code", "Consolas", monospace; font-size: 14px; font-weight: 700; }
+  .card .role { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .card .dep { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .card .dep b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>HTTPServer — How It Works</h1>
+  <div class="sub">A multithreaded HTTP/1.1 server in header-only C++20 (Winsock, port 8080).</div>
+
+  <h2>1 · Include / Dependency Graph</h2>
+  <div class="sub">Arrows point from a file to the headers it <code>#include</code>s. Colored by source. Standard-library includes are omitted for clarity.</div>
+  <div class="panel">
+    <svg viewBox="0 0 900 600" role="img" aria-label="Include dependency graph">
+      <defs>
+        <marker id="aBlue" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#60a5fa"/></marker>
+        <marker id="aGreen" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#34d399"/></marker>
+        <marker id="aAmber" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fbbf24"/></marker>
+        <marker id="aPurple" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#a78bfa"/></marker>
+        <marker id="aRed" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#f87171"/></marker>
+      </defs>
+
+      <!-- edges (drawn first, hidden under boxes at their source) -->
+      <g stroke-width="2" fill="none" opacity="0.85">
+        <!-- main -->
+        <line x1="360" y1="50" x2="200" y2="136" stroke="#60a5fa" marker-end="url(#aBlue)"/>
+        <line x1="360" y1="50" x2="700" y2="136" stroke="#60a5fa" marker-end="url(#aBlue)"/>
+        <line x1="360" y1="50" x2="200" y2="266" stroke="#60a5fa" marker-end="url(#aBlue)"/>
+        <!-- ClientHandler -->
+        <line x1="200" y1="160" x2="480" y2="136" stroke="#34d399" marker-end="url(#aGreen)"/>
+        <line x1="200" y1="160" x2="360" y2="386" stroke="#34d399" marker-end="url(#aGreen)"/>
+        <line x1="200" y1="160" x2="470" y2="516" stroke="#34d399" marker-end="url(#aGreen)"/>
+        <line x1="200" y1="160" x2="760" y2="266" stroke="#34d399" marker-end="url(#aGreen)"/>
+        <line x1="200" y1="160" x2="200" y2="266" stroke="#34d399" marker-end="url(#aGreen)"/>
+        <!-- Router -->
+        <line x1="200" y1="290" x2="360" y2="386" stroke="#fbbf24" marker-end="url(#aAmber)"/>
+        <line x1="200" y1="290" x2="470" y2="516" stroke="#fbbf24" marker-end="url(#aAmber)"/>
+        <line x1="200" y1="290" x2="120" y2="386" stroke="#fbbf24" marker-end="url(#aAmber)"/>
+        <!-- HttpRequest -->
+        <line x1="360" y1="410" x2="250" y2="516" stroke="#a78bfa" marker-end="url(#aPurple)"/>
+        <!-- FileServer -->
+        <line x1="120" y1="410" x2="470" y2="516" stroke="#f87171" marker-end="url(#aRed)"/>
+      </g>
+
+      <!-- nodes -->
+      <g font-family="Cascadia Code, Consolas, monospace" font-size="13" text-anchor="middle">
+        <!-- helper to read: rect centered at (cx,cy), 156x48 -->
+        <g>
+          <rect x="282" y="26" width="156" height="48" rx="9" fill="#222b36" stroke="#60a5fa" stroke-width="1.5"/>
+          <text x="360" y="55" fill="#e4e9f0" font-weight="700">main.cpp</text>
+        </g>
+        <g>
+          <rect x="122" y="136" width="156" height="48" rx="9" fill="#1a2029" stroke="#34d399" stroke-width="1.5"/>
+          <text x="200" y="165" fill="#e4e9f0">ClientHandler.h</text>
+        </g>
+        <g>
+          <rect x="622" y="136" width="156" height="48" rx="9" fill="#1a2029" stroke="#2d3742" stroke-width="1.5"/>
+          <text x="700" y="165" fill="#e4e9f0">ThreadPool.h</text>
+        </g>
+        <g>
+          <rect x="402" y="136" width="156" height="48" rx="9" fill="#1a2029" stroke="#2d3742" stroke-width="1.5"/>
+          <text x="480" y="165" fill="#e4e9f0">Socket.h</text>
+        </g>
+        <g>
+          <rect x="122" y="266" width="156" height="48" rx="9" fill="#1a2029" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="200" y="295" fill="#e4e9f0">Router.h</text>
+        </g>
+        <g>
+          <rect x="682" y="266" width="156" height="48" rx="9" fill="#1a2029" stroke="#2d3742" stroke-width="1.5"/>
+          <text x="760" y="295" fill="#e4e9f0">Logger.h</text>
+        </g>
+        <g>
+          <rect x="282" y="386" width="156" height="48" rx="9" fill="#1a2029" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="360" y="415" fill="#e4e9f0">HttpRequest.h</text>
+        </g>
+        <g>
+          <rect x="42" y="386" width="156" height="48" rx="9" fill="#1a2029" stroke="#f87171" stroke-width="1.5"/>
+          <text x="120" y="415" fill="#e4e9f0">FileServer.h</text>
+        </g>
+        <g>
+          <rect x="392" y="516" width="156" height="48" rx="9" fill="#1a2029" stroke="#2d3742" stroke-width="1.5"/>
+          <text x="470" y="545" fill="#e4e9f0">HttpResponse.h</text>
+        </g>
+        <g>
+          <rect x="172" y="516" width="156" height="48" rx="9" fill="#1a2029" stroke="#2d3742" stroke-width="1.5"/>
+          <text x="250" y="545" fill="#e4e9f0">UrlUtils.h</text>
+        </g>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:#60a5fa"></i>main.cpp</span>
+      <span><i class="swatch" style="background:#34d399"></i>ClientHandler.h</span>
+      <span><i class="swatch" style="background:#fbbf24"></i>Router.h</span>
+      <span><i class="swatch" style="background:#a78bfa"></i>HttpRequest.h</span>
+      <span><i class="swatch" style="background:#f87171"></i>FileServer.h</span>
+    </div>
+  </div>
+
+  <h2>2 · Request Lifecycle</h2>
+  <div class="sub">What happens from <code>main()</code> startup through serving a single request.</div>
+  <div class="panel rail">
+    <div class="flow">
+      <div class="step"><div class="num">1</div><div class="body"><div class="t">Winsock init &amp; listen socket — <code>main.cpp</code></div><div class="d"><code>WSAStartup</code> → <code>socket()</code> (wrapped in <code>SocketGuard</code> RAII) → <code>bind()</code> to port 8080 → <code>listen()</code>. Each step is error-checked.</div></div></div>
+      <div class="step"><div class="num">2</div><div class="body"><div class="t">Create the worker pool &amp; router — <code>main.cpp</code></div><div class="d"><code>ThreadPool pool(4)</code> spins up 4 <code>std::jthread</code> workers that block on a condition variable; <code>Router router</code> holds the registered routes.</div></div></div>
+      <div class="step"><div class="num">3</div><div class="body"><div class="t">Accept loop — <code>main.cpp</code></div><div class="d"><code>accept()</code> blocks until a client connects, then the raw socket is handed to <code>pool.enqueue(...)</code> as a <code>handleClient</code> task and ownership is released from the guard.</div></div></div>
+      <div class="step"><div class="num">4</div><div class="body"><div class="t">A worker picks up the connection — <code>ThreadPool.h</code> → <code>ClientHandler.h</code></div><div class="d">A free worker thread dequeues the task and runs <code>handleClient()</code>, which loops to support HTTP keep-alive.</div></div></div>
+      <div class="step"><div class="num">5</div><div class="body"><div class="t">Read the raw request — <code>readRequest()</code></div><div class="d"><code>recv()</code> loops until <code>\r\n\r\n</code> (end of headers), then reads exactly <code>Content-Length</code> more bytes for the body. Proper framing — no fixed-size assumptions.</div></div></div>
+      <div class="step"><div class="num">6</div><div class="body"><div class="t">Parse it into a struct — <code>HttpRequest.h</code> → <code>UrlUtils.h</code></div><div class="d"><code>parseRequest()</code> extracts method/path/version + headers + body, splits the query string on <code>?</code>, and URL-decodes the path (<code>%XX</code> and <code>+</code>).</div></div></div>
+      <div class="step"><div class="num">7</div><div class="body"><div class="t">Route the request — <code>Router.h</code></div><div class="d"><code>route()</code> matches method + path segments against registered handlers (including <code>:param</code> patterns). No match falls through to static file serving.</div></div></div>
+      <div class="step"><div class="num">8</div><div class="body"><div class="t">Produce a response — handler <em>or</em> <code>FileServer.h</code></div><div class="d">A matched handler builds an <code>HttpResponse</code>; otherwise <code>serveFile()</code> reads from <code>../public</code> in binary mode and picks a <code>Content-Type</code> from the extension.</div></div></div>
+      <div class="step"><div class="num">9</div><div class="body"><div class="t">Serialize, log, send — <code>HttpResponse.h</code> + <code>Logger.h</code></div><div class="d"><code>buildResponse()</code> assembles the status line + headers + body into a string; <code>log()</code> prints a timestamped line via <code>std::format</code>; <code>send()</code> writes it back.</div></div></div>
+      <div class="step"><div class="num">10</div><div class="body"><div class="t">Keep-alive or close</div><div class="d">If the request's <code>Connection</code> header isn't <code>close</code>, the loop goes back to step 5 on the same socket; otherwise the socket is closed and the worker returns to the pool.</div></div></div>
+    </div>
+  </div>
+
+  <h2>3 · File Reference</h2>
+  <div class="grid">
+    <div class="card" style="--accent:#60a5fa"><div class="fn">main.cpp</div><div class="role">Entry point. Sets up Winsock, the listening socket, the thread pool and router, then runs the accept loop.</div><div class="dep"><b>uses:</b> ClientHandler, ThreadPool, Router</div></div>
+    <div class="card" style="--accent:#34d399"><div class="fn">ClientHandler.h</div><div class="role"><code>readRequest()</code> frames bytes off the socket; <code>handleClient()</code> drives the per-connection request/response loop with keep-alive.</div><div class="dep"><b>uses:</b> Socket, HttpRequest, HttpResponse, Logger, Router</div></div>
+    <div class="card" style="--accent:#94a3b8"><div class="fn">ThreadPool.h</div><div class="role">Fixed pool of <code>std::jthread</code> workers fed by a mutex-guarded task queue, with cooperative cancellation via stop tokens.</div><div class="dep"><b>uses:</b> std only</div></div>
+    <div class="card" style="--accent:#94a3b8"><div class="fn">Socket.h</div><div class="role"><code>SocketGuard</code> — RAII wrapper that <code>closesocket()</code>s on destruction; non-copyable so ownership is explicit.</div><div class="dep"><b>uses:</b> winsock2</div></div>
+    <div class="card" style="--accent:#fbbf24"><div class="fn">Router.h</div><div class="role">Maps method + path-segment patterns to handlers, supports <code>:param</code> captures, and falls back to static files.</div><div class="dep"><b>uses:</b> HttpRequest, HttpResponse, FileServer</div></div>
+    <div class="card" style="--accent:#a78bfa"><div class="fn">HttpRequest.h</div><div class="role"><code>parseRequest()</code> turns the raw bytes into a struct: method, path, version, headers, body, query params.</div><div class="dep"><b>uses:</b> UrlUtils</div></div>
+    <div class="card" style="--accent:#94a3b8"><div class="fn">HttpResponse.h</div><div class="role">The response struct plus <code>buildResponse()</code>, which serializes status line + headers + body into a wire string.</div><div class="dep"><b>uses:</b> std only</div></div>
+    <div class="card" style="--accent:#f87171"><div class="fn">FileServer.h</div><div class="role"><code>serveFile()</code> reads a file from <code>../public</code> in binary mode and assigns a MIME type by extension (404 if missing).</div><div class="dep"><b>uses:</b> HttpResponse</div></div>
+    <div class="card" style="--accent:#94a3b8"><div class="fn">UrlUtils.h</div><div class="role"><code>urlDecode()</code> for <code>%XX</code> escapes and <code>parseQueryString()</code> for <code>k=v&amp;...</code> pairs (with <code>+</code> → space).</div><div class="dep"><b>uses:</b> std only</div></div>
+    <div class="card" style="--accent:#94a3b8"><div class="fn">Logger.h</div><div class="role"><code>log()</code> — one timestamped line per request (method, path, status) built with C++20 <code>std::format</code> + <code>&lt;chrono&gt;</code>.</div><div class="dep"><b>uses:</b> std only</div></div>
+  </div>
+
+</div>
+</body>
+</html>
